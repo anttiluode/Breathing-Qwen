@@ -24,6 +24,17 @@ def test_run_qwen_help_exposes_4bit_loader_flag():
     assert "--load-4bit" in result.stdout
 
 
+def test_run_requery_help_works_from_fresh_checkout_and_exposes_4bit():
+    result = subprocess.run(
+        [sys.executable, "scripts/run_requery.py", "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Gate 1B" in result.stdout
+    assert "--load-4bit" in result.stdout
+
+
 def test_summarize_help_works_from_fresh_checkout_without_install():
     result = subprocess.run(
         [sys.executable, "scripts/summarize_receipts.py", "--help"],
