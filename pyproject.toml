@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "breathing-qwen"
+version = "0.1.0"
+description = "Falsifiable experiments in iterative broad/sharp retrieval with residue-dependent cue trust"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+qwen = ["torch>=2.2", "transformers>=4.51", "accelerate>=1.0"]
+
+[tool.pytest.ini_options]
+markers = ["qwen: opt-in tests requiring a local Qwen model"]
+
+[tool.setuptools.packages.find]
+include = ["breathing_qwen*"]
