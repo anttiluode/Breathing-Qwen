@@ -324,7 +324,11 @@ def run_gate1(
     return RunReceipt(
         gate="gate1",
         created_at=created_at,
-        model={"name": getattr(scorer, "model_name", "unknown"), "revision": getattr(scorer, "revision", None)},
+        model={
+            "name": getattr(scorer, "model_name", "unknown"),
+            "revision": getattr(scorer, "revision", None),
+            "inference_mode": getattr(scorer, "inference_mode", "unknown"),
+        },
         benchmark={"hash": config.benchmark_hash, "items": len(items), "completed_items": n},
         config={
             "delta": config.delta,
