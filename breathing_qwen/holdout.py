@@ -19,6 +19,9 @@ class Gate1CConfig:
     weight_floor: float = 0.05
     official_item_count: int = 128
     official_benchmark_hash: str = V1_HOLDOUT_SHA256
+    official_model_name: str = "Qwen/Qwen3-8B"
+    official_revision: str = "b968826d9c46dd6066d109eabc6255188de91218"
+    official_inference_mode: str = "nf4"
 
 
 def evaluate_gate1c(
@@ -106,13 +109,22 @@ def run_gate1c(
     receipt = run_gate1b(items, scorer, engine_config)
     receipt.gate = "gate1c"
     receipt.config["development_set"] = False
+    receipt.config["official_model_name"] = config.official_model_name
+    receipt.config["official_revision"] = config.official_revision
+    receipt.config["official_inference_mode"] = config.official_inference_mode
     receipt.diagnostics["development_set"] = False
 
     n = int(receipt.benchmark["completed_items"])
+    provenance_ok = (
+        receipt.model.get("name") == config.official_model_name
+        and receipt.model.get("revision") == config.official_revision
+        and receipt.model.get("inference_mode") == config.official_inference_mode
+    )
     if (
         receipt.error is None
         and n == len(items) == config.official_item_count
         and config.benchmark_hash == config.official_benchmark_hash
+        and provenance_ok
     ):
         native = [row["predictions"]["corrupt"]["native_all_cues"] for row in receipt.items]
         guided = [row["predictions"]["corrupt"]["residue_guided"] for row in receipt.items]
@@ -130,6 +142,13 @@ def run_gate1c(
             reason = (
                 f"benchmark hash is not frozen Gate 1C holdout: got {config.benchmark_hash}, "
                 f"expected {config.official_benchmark_hash}"
+            )
+        elif not provenance_ok and n == config.official_item_count:
+            reason = (
+                "model provenance does not match frozen Gate 1C: "
+                f"got {receipt.model.get('name')} @ {receipt.model.get('revision')} "
+                f"[{receipt.model.get('inference_mode')}], expected {config.official_model_name} @ "
+                f"{config.official_revision} [{config.official_inference_mode}]"
             )
         else:
             reason = f"frozen Gate 1C requires {config.official_item_count} completed items; got {n}"
