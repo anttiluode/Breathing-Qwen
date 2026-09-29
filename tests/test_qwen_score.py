@@ -1,3 +1,6 @@
+import sys
+import types
+
 import numpy as np
 import pytest
 
@@ -80,6 +83,55 @@ def test_from_pretrained_fails_clearly_without_optional_dependencies(monkeypatch
     monkeypatch.setattr(builtins, "__import__", blocked)
     with pytest.raises(RuntimeError, match="qwen"):
         QwenCandidateScorer.from_pretrained("Qwen/Qwen3-8B", revision="abc")
+
+
+def test_from_pretrained_4bit_passes_quantization_config(monkeypatch):
+    captured = {}
+
+    class FakeBitsAndBytesConfig:
+        def __init__(self, **kwargs):
+            captured["quantization_kwargs"] = kwargs
+
+    class FakeModel:
+        def eval(self):
+            return self
+
+    class FakeAutoModel:
+        @classmethod
+        def from_pretrained(cls, model_name, **kwargs):
+            captured["model_name"] = model_name
+            captured["model_kwargs"] = kwargs
+            return FakeModel()
+
+    class FakeAutoTokenizer:
+        @classmethod
+        def from_pretrained(cls, model_name, **kwargs):
+            captured["tokenizer_kwargs"] = kwargs
+            return object()
+
+    fake_transformers = types.ModuleType("transformers")
+    fake_transformers.AutoModelForCausalLM = FakeAutoModel
+    fake_transformers.AutoTokenizer = FakeAutoTokenizer
+    fake_transformers.BitsAndBytesConfig = FakeBitsAndBytesConfig
+    monkeypatch.setitem(sys.modules, "transformers", fake_transformers)
+
+    fake_torch = types.ModuleType("torch")
+    fake_torch.bfloat16 = object()
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+
+    QwenCandidateScorer.from_pretrained(
+        "Qwen/Qwen3-8B",
+        revision="abc",
+        load_4bit=True,
+    )
+
+    assert captured["model_name"] == "Qwen/Qwen3-8B"
+    assert captured["model_kwargs"]["revision"] == "abc"
+    assert captured["model_kwargs"]["device_map"] == "auto"
+    assert captured["model_kwargs"]["quantization_config"].__class__ is FakeBitsAndBytesConfig
+    assert captured["quantization_kwargs"]["load_in_4bit"] is True
+    assert captured["quantization_kwargs"]["bnb_4bit_quant_type"] == "nf4"
+    assert captured["quantization_kwargs"]["bnb_4bit_compute_dtype"] is fake_torch.bfloat16
 
 
 class BatchBackend(FakeBackend):
