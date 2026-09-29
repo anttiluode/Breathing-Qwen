@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 V0_BENCHMARK_SHA256 = "38322de99fc14af71966dad1ecdcaa5f972300b2c3814455912440408f1a0f96"
+V1_HOLDOUT_SHA256 = "c0d45ec644f4755f8bfb879457a9b1ae1311c20b4697d0aead9dfb83510dafed"
 
 
 @dataclass(frozen=True)
