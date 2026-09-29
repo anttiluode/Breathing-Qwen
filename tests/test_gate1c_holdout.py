@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 
 from breathing_qwen.benchmark import V1_HOLDOUT_SHA256, load_benchmark
-from breathing_qwen.requery import Gate1CConfig, evaluate_gate1c, run_gate1c
+from breathing_qwen.holdout import Gate1CConfig, evaluate_gate1c, run_gate1c
 
 
 HOLDOUT = Path("benchmarks/v1_holdout.jsonl")
