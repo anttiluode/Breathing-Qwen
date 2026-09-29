@@ -1,0 +1,23 @@
+{
+  "name": "gate1d-v2-holdout",
+  "items": 128,
+  "combined_sha256": "94521634b3f6d55ad686d3bcb9c29543102e084df4705bd5972004c9cd04b94b",
+  "shards": [
+    {"file":"neuro.jsonl","sha256":"25f25d4501734fe124d42985f11096ad8f82a8f98fb8591fae2f93b1280a271f","items":8},
+    {"file":"cellbio.jsonl","sha256":"9aca3a01f0c3a9f6d93a43f9a40c7bc0c6ad67a06521fde0777fd61fe0db8848","items":8},
+    {"file":"chem.jsonl","sha256":"d5b515a187e48c77c7d271b7c010618e0a2f06e90614e94139d543e58289b782","items":8},
+    {"file":"physics.jsonl","sha256":"ee1fb047a5f441dd74d49d29f0f4d6464958a96dccf53cf1724770da8244155d","items":8},
+    {"file":"astro.jsonl","sha256":"f9eca4409abb838f9750b77f41b0218855cb86605599fe975ae0dd5dab6ea826","items":8},
+    {"file":"geo.jsonl","sha256":"12c0e0f2e8dd81e07e48ad32cfa0b5c7ad80254268c3aff9430b6ef8cdbb822f","items":8},
+    {"file":"history.jsonl","sha256":"4a0db6afe5d5704d18c630339f31e3bd61bbfc79fb1773caa5f5bbc466339573","items":8},
+    {"file":"literature.jsonl","sha256":"3c858a9e42c899959d72c450cf8bb3861639e0d5c5b6cdb9ae761623d836eea2","items":8},
+    {"file":"music.jsonl","sha256":"61fef468a6824da7b9e9aedcab452e82f76b0a58a42e4cac03e4185d79e97d0c","items":8},
+    {"file":"art.jsonl","sha256":"f7a859d97b4b28fc4c5654331fd960815a9ffd48b0ffe51bbedbf1ac81a7cfb4","items":8},
+    {"file":"computing.jsonl","sha256":"d730b158c9f67844a831a21d6db26e6f007f8235f0c2bcb1709aa8e52cfa3f2a","items":8},
+    {"file":"math.jsonl","sha256":"a0dfb79af71fbdd14f3d8edd138ef6ca3ee9c2ef48bec30a23253839566502ed","items":8},
+    {"file":"instrument.jsonl","sha256":"218e411784712e50ebe0e31eb046c2b2cbbc38b8a619d9b70a4cab9819247ebc","items":8},
+    {"file":"animal.jsonl","sha256":"92d327231b3237659218bbcdf8257ccca0fc1f971a2b1a38dff49b21c02a5c77","items":8},
+    {"file":"plant.jsonl","sha256":"3a0db43b9504a7454fb0473c040c910ab4ea1ca3d4f36285b1ab241c8b2fdf33","items":8},
+    {"file":"object.jsonl","sha256":"edd039fc85cd6f1089d3227dea38b7b74d2974858d8ad26fcc120c39f95684c2","items":8}
+  ]
+}
