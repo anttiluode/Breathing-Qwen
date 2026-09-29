@@ -11,7 +11,7 @@ from typing import Any, Sequence
 
 import numpy as np
 
-from .benchmark import BenchmarkItem
+from .benchmark import BenchmarkItem, V0_BENCHMARK_SHA256
 from .schedules import DEFAULT_SCHEDULE, BreathingSchedule
 from .settling import SettlingTrace, settle
 
@@ -25,6 +25,8 @@ class Gate1Config:
     delta: float = 0.20
     weight_floor: float = 0.05
     include_order_control: bool = True
+    official_item_count: int = 32
+    official_benchmark_hash: str = V0_BENCHMARK_SHA256
 
 
 @dataclass
@@ -128,6 +130,59 @@ def _finalize_metrics(stats: dict[str, dict[str, list[float]]]) -> dict[str, dic
             "mean_margin": float(np.mean(s["corrupt_margin"])),
         }
     return metrics
+
+
+def evaluate_gate1(
+    metrics: dict[str, dict[str, float]],
+    native_corrupt_winners: Sequence[int],
+    robust_corrupt_winners: Sequence[int],
+    correct_indices: Sequence[int],
+) -> dict[str, Any]:
+    """Apply the frozen Gate-1 decision rule from the v0 design."""
+    matched = ("fixed", "breathing")
+    if any(not metrics.get(name) for name in (*matched, "breathing_residue")):
+        return {"evaluated": False, "passed": False, "reason": "insufficient completed metrics"}
+    if not (len(native_corrupt_winners) == len(robust_corrupt_winners) == len(correct_indices)):
+        raise ValueError("winner and correct-index vectors must have equal length")
+
+    robust = metrics["breathing_residue"]
+    best_corrupt = max(metrics[name]["corrupt_accuracy"] for name in matched)
+    best_clean = max(metrics[name]["clean_accuracy"] for name in matched)
+    corrupt_gain = robust["corrupt_accuracy"] - best_corrupt
+    clean_loss = best_clean - robust["clean_accuracy"]
+    recoveries = sum(
+        native != correct and robust_winner == correct
+        for native, robust_winner, correct in zip(
+            native_corrupt_winners, robust_corrupt_winners, correct_indices, strict=True
+        )
+    )
+    new_errors = sum(
+        native == correct and robust_winner != correct
+        for native, robust_winner, correct in zip(
+            native_corrupt_winners, robust_corrupt_winners, correct_indices, strict=True
+        )
+    )
+    recovery_advantage = int(recoveries - new_errors)
+    passed = corrupt_gain >= 0.10 and clean_loss <= 0.03 and recovery_advantage >= 4
+    return {
+        "evaluated": True,
+        "passed": bool(passed),
+        "corrupt_gain": float(corrupt_gain),
+        "clean_loss": float(clean_loss),
+        "recoveries": int(recoveries),
+        "new_errors": int(new_errors),
+        "recovery_advantage": recovery_advantage,
+        "thresholds": {
+            "min_corrupt_gain": 0.10,
+            "max_clean_loss": 0.03,
+            "min_recovery_advantage": 4,
+        },
+        "reason": (
+            f"corrupt_gain={corrupt_gain:.4f} (need >=0.1000); "
+            f"clean_loss={clean_loss:.4f} (need <=0.0300); "
+            f"recovery_advantage={recovery_advantage} (need >=4)"
+        ),
+    }
 
 
 def run_gate1(
@@ -248,6 +303,23 @@ def run_gate1(
         "mean_final_weight_known_corrupt_cue": float(np.mean(corrupt_final_weights)) if corrupt_final_weights else None,
         "cached_score_vectors": len(cache),
     }
+    if error is None and n == len(items) == config.official_item_count and config.benchmark_hash == config.official_benchmark_hash:
+        diagnostics["gate_decision"] = evaluate_gate1(
+            _finalize_metrics(stats), native_corrupt_winners, robust_corrupt_winners, correct_indices
+        )
+    else:
+        if config.benchmark_hash != config.official_benchmark_hash:
+            decision_reason = (
+                f"benchmark hash is not frozen v0: got {config.benchmark_hash}, "
+                f"expected {config.official_benchmark_hash}"
+            )
+        else:
+            decision_reason = f"frozen Gate 1 requires {config.official_item_count} completed items; got {n}"
+        diagnostics["gate_decision"] = {
+            "evaluated": False,
+            "passed": False,
+            "reason": decision_reason,
+        }
     created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     return RunReceipt(
         gate="gate1",
@@ -259,6 +331,8 @@ def run_gate1(
             "weight_floor": config.weight_floor,
             "schedule": {"betas": list(config.schedule.betas), "phases": list(config.schedule.phases)},
             "include_order_control": config.include_order_control,
+            "official_item_count": config.official_item_count,
+            "official_benchmark_hash": config.official_benchmark_hash,
         },
         environment={
             "python": sys.version.split()[0],
