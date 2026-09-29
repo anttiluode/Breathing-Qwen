@@ -14,6 +14,16 @@ def test_run_qwen_help_works_from_fresh_checkout_without_install():
     assert "Qwen3-8B Gate 1" in result.stdout
 
 
+def test_run_qwen_help_exposes_4bit_loader_flag():
+    result = subprocess.run(
+        [sys.executable, "scripts/run_qwen.py", "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "--load-4bit" in result.stdout
+
+
 def test_summarize_help_works_from_fresh_checkout_without_install():
     result = subprocess.run(
         [sys.executable, "scripts/summarize_receipts.py", "--help"],
