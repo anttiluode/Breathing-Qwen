@@ -51,6 +51,11 @@ def main() -> int:
     parser.add_argument("--max-memory-json", help='Transformers max_memory JSON, e.g. {"0":"6GiB","cpu":"6GiB"}')
     parser.add_argument("--offload-folder", type=str)
     parser.add_argument("--candidate-batch-size", type=int, default=1)
+    parser.add_argument(
+        "--load-4bit",
+        action="store_true",
+        help="load the model with bitsandbytes NF4 4-bit quantization",
+    )
     parser.add_argument("--no-order-control", action="store_true")
     parser.add_argument(
         "--allow-benchmark-mismatch",
@@ -92,6 +97,7 @@ def main() -> int:
         max_memory=max_memory,
         offload_folder=args.offload_folder,
         candidate_batch_size=args.candidate_batch_size,
+        load_4bit=args.load_4bit,
     )
     config = Gate1Config(
         benchmark_hash=benchmark_hash,
