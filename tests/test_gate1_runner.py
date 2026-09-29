@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from breathing_qwen.benchmark import BenchmarkItem
+from breathing_qwen.benchmark import BenchmarkItem, V0_BENCHMARK_SHA256
 from breathing_qwen.receipts import Gate1Config, run_gate1
 
 
@@ -111,10 +111,12 @@ def test_frozen_gate1_decision_fails_if_recovery_advantage_is_under_four():
 
 
 def test_partial_smoke_run_never_evaluates_frozen_gate1_decision():
-    receipt = run_gate1([item()], MappingScorer(mapping()), Gate1Config(benchmark_hash="abc"))
+    receipt = run_gate1(
+        [item()], MappingScorer(mapping()), Gate1Config(benchmark_hash=V0_BENCHMARK_SHA256)
+    )
     assert receipt.diagnostics["gate_decision"]["evaluated"] is False
     assert receipt.diagnostics["gate_decision"]["passed"] is False
-    assert "32" in receipt.diagnostics["gate_decision"]["reason"] or "hash" in receipt.diagnostics["gate_decision"]["reason"].lower()
+    assert "requires 32 completed items; got 1" in receipt.diagnostics["gate_decision"]["reason"]
 
 
 def test_wrong_32_item_benchmark_hash_cannot_evaluate_official_gate():
