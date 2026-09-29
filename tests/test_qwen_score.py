@@ -80,3 +80,38 @@ def test_from_pretrained_fails_clearly_without_optional_dependencies(monkeypatch
     monkeypatch.setattr(builtins, "__import__", blocked)
     with pytest.raises(RuntimeError, match="qwen"):
         QwenCandidateScorer.from_pretrained("Qwen/Qwen3-8B", revision="abc")
+
+
+class BatchBackend(FakeBackend):
+    def __init__(self):
+        self.batch_calls = 0
+        self.single_calls = 0
+
+    def observed_token_logprobs(self, input_ids):
+        self.single_calls += 1
+        return super().observed_token_logprobs(input_ids)
+
+    def observed_token_logprobs_batch(self, sequences):
+        self.batch_calls += 1
+        return [FakeBackend.observed_token_logprobs(self, ids) for ids in sequences]
+
+
+def test_candidate_sequences_use_one_batch_backend_call_when_available():
+    backend = BatchBackend()
+    scores = make_scorer(backend).score_cue("anything", ["alpha", "beta"])
+    assert np.allclose(scores, [-0.5, -0.4])
+    assert backend.batch_calls == 1
+    assert backend.single_calls == 0
+
+
+def test_candidate_batch_size_can_reduce_peak_memory():
+    backend = BatchBackend()
+    scorer = QwenCandidateScorer(
+        model_backend=backend,
+        tokenizer=FakeTokenizer(),
+        candidate_batch_size=1,
+    )
+    scores = scorer.score_cue("anything", ["alpha", "beta"])
+    assert np.allclose(scores, [-0.5, -0.4])
+    assert backend.batch_calls == 2
+    assert backend.single_calls == 0
