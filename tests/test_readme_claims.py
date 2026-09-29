@@ -1,23 +1,27 @@
 from pathlib import Path
 
 
-def test_readme_reports_gate0_kill_and_does_not_invent_gate1_result():
+def test_readme_reports_gate0_and_gate1q4_failures_without_inventing_gate1b():
     text = Path("README.md").read_text(encoding="utf-8")
-    assert "Gate 0: FAIL" in text
-    assert "+5.47 percentage points" in text
-    assert "Gate 1: NOT RUN" in text
-    assert "Qwen3-8B" in text
+    assert "Gate 0" in text and "FAIL" in text
+    assert "+5.47 pp" in text
+    assert "Gate 1-Q4" in text and "FAIL" in text
+    assert "Gate 1B" in text and "NOT RUN" in text
+    assert "90.6%" in text
+    assert "65.6%" in text
+    assert "3 recoveries and 6 new errors" in text
 
 
 def test_readme_names_external_settling_boundary():
     text = Path("README.md").read_text(encoding="utf-8").lower()
-    assert "external settling" in text
-    assert "breathing-only" in text
-    assert "does not change candidate ordering" in text
+    assert "external beta" in text
+    assert "fixed candidate score vector" in text
+    assert "internal attention-temperature" in text
 
 
-def test_readme_states_frozen_gate1_decision_rule_and_full_run_requirement():
+def test_readme_states_frozen_gate1b_decision_rule_and_development_boundary():
     text = Path("README.md").read_text(encoding="utf-8")
-    assert "all 32" in text
-    assert "+10 percentage points" in text
-    assert "4 more recoveries than new errors" in text
+    assert "2/32 = 6.25 pp" in text
+    assert "1/32 = 3.125 pp" in text
+    assert "2 more recoveries than new errors" in text
+    assert "development-set evidence only" in text
