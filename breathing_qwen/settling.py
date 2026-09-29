@@ -33,9 +33,10 @@ class SettlingTrace:
 
 def _normalize_rows(evidence: np.ndarray) -> np.ndarray:
     centered = evidence - evidence.mean(axis=1, keepdims=True)
-    scale = np.linalg.norm(centered, axis=1, keepdims=True)
-    scale = np.where(scale > 1e-12, scale, 1.0)
-    return centered / scale
+    row_norms = np.linalg.norm(centered, axis=1)
+    positive = row_norms[row_norms > 1e-12]
+    scale = float(np.median(positive)) if positive.size else 1.0
+    return centered / max(scale, 1e-12)
 
 
 def _softmax(scores: np.ndarray) -> np.ndarray:

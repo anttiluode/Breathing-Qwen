@@ -37,7 +37,7 @@ def test_breathing_only_follows_beta_schedule_but_keeps_trust_frozen():
 
 
 def test_breathing_residue_downweights_inconsistent_cue():
-    trace = settle(EVIDENCE, DEFAULT_SCHEDULE, mode="breathing_residue", delta=1.0, weight_floor=0.05)
+    trace = settle(EVIDENCE, DEFAULT_SCHEDULE, mode="breathing_residue", delta=0.2, weight_floor=0.05)
     initial = trace.cycles[0].cue_weights
     final = trace.cycles[-1].cue_weights
     assert np.allclose(initial, 1.0)
@@ -65,3 +65,17 @@ def test_settle_rejects_nonfinite_evidence():
 def test_settle_rejects_unknown_mode():
     with pytest.raises(ValueError, match="mode"):
         settle(EVIDENCE, DEFAULT_SCHEDULE, mode="oracle", delta=1.5, weight_floor=0.05)
+
+
+def test_residue_can_recover_from_one_high_confidence_conflicting_cue():
+    evidence = np.array([
+        [1.2, 1.0, 0.0],
+        [1.1, 0.9, 0.0],
+        [1.0, 0.8, 0.0],
+        [0.0, 4.0, 0.0],
+    ])
+    native = settle(evidence, DEFAULT_SCHEDULE, mode="one_shot", delta=1.0, weight_floor=0.05)
+    robust = settle(evidence, DEFAULT_SCHEDULE, mode="breathing_residue", delta=0.2, weight_floor=0.05)
+    assert native.winner_index == 1
+    assert robust.winner_index == 0
+    assert robust.cycles[-1].cue_weights[3] < robust.cycles[-1].cue_weights[:3].min()
