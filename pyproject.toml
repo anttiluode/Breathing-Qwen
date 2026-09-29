@@ -15,3 +15,6 @@ qwen = ["torch>=2.2", "transformers>=4.51", "accelerate>=1.0"]
 
 [tool.pytest.ini_options]
 markers = ["qwen: opt-in tests requiring a local Qwen model"]
+
+[tool.setuptools.packages.find]
+include = ["breathing_qwen*"]
