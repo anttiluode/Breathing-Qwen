@@ -12,15 +12,17 @@ class EvidenceScorer(Protocol):
 class SequenceLogprobBackend(Protocol):
     model_name: str
     revision: str | None
+    inference_mode: str
 
     def observed_token_logprobs(self, input_ids: Sequence[int]) -> np.ndarray: ...
 
 
 class _HFBackend:
-    def __init__(self, model, *, model_name: str, revision: str | None):
+    def __init__(self, model, *, model_name: str, revision: str | None, inference_mode: str):
         self.model = model
         self.model_name = model_name
         self.revision = revision
+        self.inference_mode = inference_mode
 
     def observed_token_logprobs(self, input_ids: Sequence[int]) -> np.ndarray:
         return self.observed_token_logprobs_batch([input_ids])[0]
@@ -74,6 +76,10 @@ class QwenCandidateScorer:
     def revision(self) -> str | None:
         return self.model_backend.revision
 
+    @property
+    def inference_mode(self) -> str:
+        return getattr(self.model_backend, "inference_mode", "unknown")
+
     @classmethod
     def from_pretrained(
         cls,
@@ -95,6 +101,7 @@ class QwenCandidateScorer:
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision)
         kwargs = {"revision": revision, "device_map": device_map, "dtype": "auto"}
+        inference_mode = "native"
         if load_4bit:
             try:
                 import torch
@@ -108,6 +115,7 @@ class QwenCandidateScorer:
                 bnb_4bit_compute_dtype=torch.bfloat16,
                 bnb_4bit_quant_type="nf4",
             )
+            inference_mode = "nf4"
         if max_memory is not None:
             kwargs["max_memory"] = max_memory
         if offload_folder is not None:
@@ -116,7 +124,12 @@ class QwenCandidateScorer:
         model = AutoModelForCausalLM.from_pretrained(model_name, **kwargs)
         model.eval()
         return cls(
-            model_backend=_HFBackend(model, model_name=model_name, revision=revision),
+            model_backend=_HFBackend(
+                model,
+                model_name=model_name,
+                revision=revision,
+                inference_mode=inference_mode,
+            ),
             tokenizer=tokenizer,
             candidate_batch_size=candidate_batch_size,
         )
