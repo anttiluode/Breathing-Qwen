@@ -12,6 +12,7 @@ from breathing_qwen.holdout import Gate1CConfig, evaluate_gate1c, run_gate1c
 
 HOLDOUT = Path("benchmarks/v1_holdout.jsonl")
 EXPECTED_SHA = "c0d45ec644f4755f8bfb879457a9b1ae1311c20b4697d0aead9dfb83510dafed"
+EXPECTED_REVISION = "b968826d9c46dd6066d109eabc6255188de91218"
 
 
 class MappingScorer:
@@ -24,6 +25,12 @@ class MappingScorer:
 
     def score_cue(self, cue, candidates):
         return np.asarray(self.mapping[cue], dtype=float)
+
+
+class OfficialMappingScorer(MappingScorer):
+    model_name = "Qwen/Qwen3-8B"
+    revision = EXPECTED_REVISION
+    inference_mode = "nf4"
 
 
 def _tiny_item_and_mapping():
@@ -79,6 +86,13 @@ def test_holdout_targets_do_not_reuse_v0_targets():
     assert all(len(item.candidates) == 5 for item in holdout)
 
 
+def test_gate1c_config_locks_qwen_revision_and_nf4_mode():
+    config = Gate1CConfig(benchmark_hash=V1_HOLDOUT_SHA256)
+    assert config.official_model_name == "Qwen/Qwen3-8B"
+    assert config.official_revision == EXPECTED_REVISION
+    assert config.official_inference_mode == "nf4"
+
+
 def test_gate1c_frozen_rule_includes_locator_and_scaled_thresholds():
     metrics = {
         "native_all_cues": {"clean_accuracy": 0.90, "corrupt_accuracy": 0.70},
@@ -122,7 +136,7 @@ def test_gate1c_receipt_is_holdout_not_development_set():
     item, mapping = _tiny_item_and_mapping()
     receipt = run_gate1c(
         [item],
-        MappingScorer(mapping),
+        OfficialMappingScorer(mapping),
         Gate1CConfig(benchmark_hash=V1_HOLDOUT_SHA256),
     )
     assert receipt.gate == "gate1c"
@@ -130,3 +144,16 @@ def test_gate1c_receipt_is_holdout_not_development_set():
     assert receipt.diagnostics["development_set"] is False
     assert receipt.diagnostics["gate_decision"]["evaluated"] is False
     assert "requires 128 completed items; got 1" in receipt.diagnostics["gate_decision"]["reason"]
+
+
+def test_gate1c_wrong_model_provenance_cannot_evaluate_official_gate():
+    item, mapping = _tiny_item_and_mapping()
+    receipt = run_gate1c(
+        [item] * 128,
+        MappingScorer(mapping),
+        Gate1CConfig(benchmark_hash=V1_HOLDOUT_SHA256),
+    )
+    decision = receipt.diagnostics["gate_decision"]
+    assert decision["evaluated"] is False
+    assert decision["passed"] is False
+    assert "provenance" in decision["reason"].lower()
