@@ -35,6 +35,18 @@ def test_run_requery_help_works_from_fresh_checkout_and_exposes_4bit():
     assert "--load-4bit" in result.stdout
 
 
+def test_run_holdout_help_works_from_fresh_checkout_and_exposes_4bit():
+    result = subprocess.run(
+        [sys.executable, "scripts/run_holdout.py", "--help"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "Gate 1C" in result.stdout
+    assert "128-item held-out" in result.stdout
+    assert "--load-4bit" in result.stdout
+
+
 def test_summarize_help_works_from_fresh_checkout_without_install():
     result = subprocess.run(
         [sys.executable, "scripts/summarize_receipts.py", "--help"],
