@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from breathing_qwen.benchmark import V0_BENCHMARK_SHA256
 from breathing_qwen.receipts import Gate1Config, RunReceipt, read_receipt, write_receipt
 
 
@@ -42,3 +43,5 @@ def test_gate1_config_freezes_v0_constants():
     assert cfg.delta == 0.2
     assert cfg.weight_floor == 0.05
     assert cfg.schedule.betas == (0.50, 1.75, 0.65, 2.00)
+    assert cfg.official_item_count == 32
+    assert cfg.official_benchmark_hash == V0_BENCHMARK_SHA256

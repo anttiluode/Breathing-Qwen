@@ -12,11 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from breathing_qwen.benchmark import load_benchmark
+from breathing_qwen.benchmark import V0_BENCHMARK_SHA256, load_benchmark
 from breathing_qwen.qwen_score import QwenCandidateScorer
 from breathing_qwen.receipts import Gate1Config, run_gate1, write_receipt
-
-V0_SHA256 = "38322de99fc14af71966dad1ecdcaa5f972300b2c3814455912440408f1a0f96"
 
 
 def file_sha256(path: Path) -> str:
@@ -67,9 +65,13 @@ def main() -> int:
         parser.error("--candidate-batch-size must be >= 1")
 
     benchmark_hash = file_sha256(args.benchmark)
-    if args.benchmark.name == "v0.jsonl" and benchmark_hash != V0_SHA256 and not args.allow_benchmark_mismatch:
+    if (
+        args.benchmark.name == "v0.jsonl"
+        and benchmark_hash != V0_BENCHMARK_SHA256
+        and not args.allow_benchmark_mismatch
+    ):
         parser.error(
-            f"v0 benchmark hash mismatch: got {benchmark_hash}, expected {V0_SHA256}; "
+            f"v0 benchmark hash mismatch: got {benchmark_hash}, expected {V0_BENCHMARK_SHA256}; "
             "do not silently edit v0"
         )
 
@@ -102,7 +104,10 @@ def main() -> int:
     print(f"receipt: {output}")
     print(f"status: {receipt.status}")
     print(f"model: {receipt.model['name']} @ {receipt.model['revision']}")
-    print(f"benchmark: {benchmark_hash} ({receipt.benchmark['completed_items']}/{receipt.benchmark['items']} completed)")
+    print(
+        f"benchmark: {benchmark_hash} "
+        f"({receipt.benchmark['completed_items']}/{receipt.benchmark['items']} completed)"
+    )
     for arm, metrics in receipt.metrics.items():
         if metrics:
             print(
@@ -110,6 +115,8 @@ def main() -> int:
                 f"corrupt={metrics['corrupt_accuracy']:.3f} "
                 f"rank={metrics['mean_rank']:.3f} margin={metrics['mean_margin']:.4f}"
             )
+    decision = receipt.diagnostics.get("gate_decision", {})
+    print(f"gate decision: {decision}")
     if receipt.error:
         print(f"error: {receipt.error}")
         return 1

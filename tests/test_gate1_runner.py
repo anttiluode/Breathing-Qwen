@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from breathing_qwen.benchmark import BenchmarkItem
 from breathing_qwen.receipts import Gate1Config, run_gate1
@@ -71,3 +72,58 @@ def test_order_control_is_recorded_separately_from_settling():
     receipt = run_gate1([item()], MappingScorer(mapping()), Gate1Config(benchmark_hash="abc"))
     assert receipt.diagnostics["native_order_flip_rate_clean"] == 0.0
     assert receipt.diagnostics["native_order_flip_rate_corrupt"] == 0.0
+
+
+def test_frozen_gate1_decision_requires_all_three_predeclared_conditions():
+    from breathing_qwen.receipts import evaluate_gate1
+
+    metrics = {
+        "fixed": {"clean_accuracy": 0.90, "corrupt_accuracy": 0.50},
+        "breathing": {"clean_accuracy": 0.91, "corrupt_accuracy": 0.52},
+        "breathing_residue": {"clean_accuracy": 0.89, "corrupt_accuracy": 0.63},
+    }
+    correct = [0] * 10
+    native = [1, 1, 1, 1, 1, 0, 0, 0, 0, 0]
+    robust = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    decision = evaluate_gate1(metrics, native, robust, correct)
+    assert decision["passed"] is True
+    assert decision["corrupt_gain"] == pytest.approx(0.11)
+    assert decision["clean_loss"] == pytest.approx(0.02)
+    assert decision["recoveries"] == 5
+    assert decision["new_errors"] == 0
+    assert decision["recovery_advantage"] == 5
+
+
+def test_frozen_gate1_decision_fails_if_recovery_advantage_is_under_four():
+    from breathing_qwen.receipts import evaluate_gate1
+
+    metrics = {
+        "fixed": {"clean_accuracy": 0.90, "corrupt_accuracy": 0.50},
+        "breathing": {"clean_accuracy": 0.91, "corrupt_accuracy": 0.52},
+        "breathing_residue": {"clean_accuracy": 0.89, "corrupt_accuracy": 0.63},
+    }
+    correct = [0] * 6
+    native = [1, 1, 1, 0, 0, 0]
+    robust = [0, 0, 0, 0, 0, 0]
+    decision = evaluate_gate1(metrics, native, robust, correct)
+    assert decision["passed"] is False
+    assert decision["recovery_advantage"] == 3
+
+
+def test_partial_smoke_run_never_evaluates_frozen_gate1_decision():
+    receipt = run_gate1([item()], MappingScorer(mapping()), Gate1Config(benchmark_hash="abc"))
+    assert receipt.diagnostics["gate_decision"]["evaluated"] is False
+    assert receipt.diagnostics["gate_decision"]["passed"] is False
+    assert "32" in receipt.diagnostics["gate_decision"]["reason"] or "hash" in receipt.diagnostics["gate_decision"]["reason"].lower()
+
+
+def test_wrong_32_item_benchmark_hash_cannot_evaluate_official_gate():
+    receipt = run_gate1(
+        [item()] * 32,
+        MappingScorer(mapping()),
+        Gate1Config(benchmark_hash="not-the-v0-hash"),
+    )
+    decision = receipt.diagnostics["gate_decision"]
+    assert decision["evaluated"] is False
+    assert decision["passed"] is False
+    assert "hash" in decision["reason"].lower()

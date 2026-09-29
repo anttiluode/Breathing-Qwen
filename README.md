@@ -76,6 +76,8 @@ The runner compares five arms on the same cached evidence:
 
 It also reruns native all-cues scoring with cue order reversed, because position/order sensitivity is a known confound for this project.
 
+The **frozen Gate-1 decision rule** is evaluated only after all 32 official pairs complete. Breathing + residue must (1) beat the best matched fixed/breathing control on corrupt accuracy by at least **+10 percentage points**, (2) lose no more than **3 percentage points** of clean accuracy versus the best matched control, and (3) produce at least **4 more recoveries than new errors** relative to native Qwen on the corrupt condition. A smoke run can never pass or fail the official gate.
+
 ### Gate 2: not implemented yet
 
 The next stronger test is repeated inference over an unchanged prompt with no new generated tokens, while a controller carries span trust between passes.
