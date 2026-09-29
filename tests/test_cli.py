@@ -22,3 +22,13 @@ def test_summarize_help_works_from_fresh_checkout_without_install():
     )
     assert result.returncode == 0, result.stderr
     assert "Summarize Breathing-Qwen" in result.stdout
+
+
+def test_run_toy_works_from_fresh_checkout_without_install():
+    result = subprocess.run(
+        [sys.executable, "scripts/run_toy.py", "--json"],
+        text=True,
+        capture_output=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert '"gate_name": "gate0"' in result.stdout

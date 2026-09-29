@@ -3,5 +3,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 .env
-receipts/*.json
 .superpowers/
+.offload_qwen/
+offload/
