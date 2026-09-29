@@ -26,6 +26,7 @@ class FakeTokenizer:
 class FakeBackend:
     model_name = "fake"
     revision = "unit-test"
+    inference_mode = "native"
 
     def observed_token_logprobs(self, input_ids):
         return np.array([-token / 10.0 for token in input_ids[1:]], dtype=float)
@@ -40,6 +41,10 @@ class NonFiniteBackend(FakeBackend):
 
 def make_scorer(backend=None):
     return QwenCandidateScorer(model_backend=backend or FakeBackend(), tokenizer=FakeTokenizer())
+
+
+def test_scorer_exposes_backend_inference_mode():
+    assert make_scorer().inference_mode == "native"
 
 
 def test_scores_full_multi_token_answer_not_only_first_token():
@@ -85,7 +90,7 @@ def test_from_pretrained_fails_clearly_without_optional_dependencies(monkeypatch
         QwenCandidateScorer.from_pretrained("Qwen/Qwen3-8B", revision="abc")
 
 
-def test_from_pretrained_4bit_passes_quantization_config(monkeypatch):
+def test_from_pretrained_4bit_passes_quantization_config_and_records_nf4(monkeypatch):
     captured = {}
 
     class FakeBitsAndBytesConfig:
@@ -119,7 +124,7 @@ def test_from_pretrained_4bit_passes_quantization_config(monkeypatch):
     fake_torch.bfloat16 = object()
     monkeypatch.setitem(sys.modules, "torch", fake_torch)
 
-    QwenCandidateScorer.from_pretrained(
+    scorer = QwenCandidateScorer.from_pretrained(
         "Qwen/Qwen3-8B",
         revision="abc",
         load_4bit=True,
@@ -132,6 +137,7 @@ def test_from_pretrained_4bit_passes_quantization_config(monkeypatch):
     assert captured["quantization_kwargs"]["load_in_4bit"] is True
     assert captured["quantization_kwargs"]["bnb_4bit_quant_type"] == "nf4"
     assert captured["quantization_kwargs"]["bnb_4bit_compute_dtype"] is fake_torch.bfloat16
+    assert scorer.inference_mode == "nf4"
 
 
 class BatchBackend(FakeBackend):
