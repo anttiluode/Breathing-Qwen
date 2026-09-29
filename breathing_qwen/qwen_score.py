@@ -84,9 +84,10 @@ class QwenCandidateScorer:
         max_memory: dict | None = None,
         offload_folder: str | None = None,
         candidate_batch_size: int | None = 1,
+        load_4bit: bool = False,
     ) -> "QwenCandidateScorer":
         try:
-            from transformers import AutoModelForCausalLM, AutoTokenizer
+            from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
         except ImportError as exc:
             raise RuntimeError(
                 "qwen optional dependencies are required; install `breathing-qwen[qwen]`"
@@ -94,6 +95,19 @@ class QwenCandidateScorer:
 
         tokenizer = AutoTokenizer.from_pretrained(model_name, revision=revision)
         kwargs = {"revision": revision, "device_map": device_map, "dtype": "auto"}
+        if load_4bit:
+            try:
+                import torch
+            except ImportError as exc:
+                raise RuntimeError(
+                    "4-bit Qwen loading requires torch and bitsandbytes; "
+                    "install the qwen dependencies and `bitsandbytes`"
+                ) from exc
+            kwargs["quantization_config"] = BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_quant_type="nf4",
+            )
         if max_memory is not None:
             kwargs["max_memory"] = max_memory
         if offload_folder is not None:
@@ -171,5 +185,5 @@ class QwenCandidateScorer:
             scores.append(float(candidate_logprobs.mean()))
         result = np.asarray(scores, dtype=float)
         if not np.all(np.isfinite(result)):
-            raise ValueError("candidate scores must be finite")
+            raise ValueError("model token log-probabilities must be finite")
         return result
