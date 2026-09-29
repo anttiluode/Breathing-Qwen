@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+V0_BENCHMARK_SHA256 = "38322de99fc14af71966dad1ecdcaa5f972300b2c3814455912440408f1a0f96"
+
 
 @dataclass(frozen=True)
 class BenchmarkItem:
@@ -22,7 +24,11 @@ class BenchmarkItem:
             raise ValueError(f"{self.id}: answer must occur exactly once in candidates")
         if len(self.clean_cues) != len(self.corrupt_cues) or not self.clean_cues:
             raise ValueError(f"{self.id}: clean/corrupt cue lengths must match and be nonempty")
-        changed = [i for i, pair in enumerate(zip(self.clean_cues, self.corrupt_cues, strict=True)) if pair[0] != pair[1]]
+        changed = [
+            i
+            for i, pair in enumerate(zip(self.clean_cues, self.corrupt_cues, strict=True))
+            if pair[0] != pair[1]
+        ]
         if changed != [self.corrupt_index]:
             raise ValueError(f"{self.id}: exactly corrupt_index must differ")
         if len(set(self.candidates)) != len(self.candidates):
