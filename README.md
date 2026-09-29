@@ -2,20 +2,27 @@
 
 **Can a frozen language model recover an answer it weakly contains when one cue is confidently wrong?**
 
-Breathing-Qwen is a controlled retrieval experiment around frozen **Qwen3-8B**. It started from a simple idea: contradictory evidence should leave a residue that can change the next computation instead of being blindly averaged away.
+Breathing-Qwen is a controlled retrieval experiment around frozen **Qwen3-8B**. It started from a rhythmic-settling idea, but the experiments narrowed the useful mechanism: contradictory evidence leaves a residue that is better used to **choose the next computation** than to directly generate the answer from decomposed clues.
 
-The repository keeps negative results. The first external “breathing” mechanism did **not** pass its gates. What survived is narrower and more interesting: residue reweighting appears much better at **locating suspicious evidence** than at generating the final answer from decomposed cues. Gate 1B tests whether that diagnostic can guide a fresh native Qwen re-query.
+The current surviving recipe is:
+
+```text
+decompose to diagnose -> identify one suspicious cue -> re-query intact joint Qwen
+```
+
+The repository keeps negative results and frozen gates. A failed mechanism is not retuned away after seeing its result.
 
 ## Current status
 
 | Gate | Status | Main result |
 |---|---|---|
 | Gate 0 | **FAIL** | residue improved corrupt accuracy by +5.47 pp, below the frozen +10 pp threshold |
-| Gate 1-Q4 | **FAIL** | residue beat matched decomposed controls but damaged too many native-correct answers |
-| Gate 1B | **NOT RUN** | frozen residue-guided native re-query experiment |
-| Gate 3 | boundary only | true internal attention-temperature intervention still untested |
+| Gate 1-Q4 | **FAIL** | residue helped decomposed evidence but produced 3 recoveries and 6 new native errors |
+| Gate 1B | **PASS — development set** | residue-guided re-query reached 93.75% corrupt accuracy, 6 recoveries, 0 new errors |
+| Gate 1C | **NOT RUN — held-out** | frozen 128-item independent test of the unchanged Gate-1B mechanism |
+| Gate 3 | boundary only | true internal attention-temperature intervention remains untested |
 
-`Q4` means the run used bitsandbytes NF4 4-bit loading. Quantization is now recorded explicitly in receipts; it is not silently treated as a full-precision run.
+`Q4` / `NF4` means bitsandbytes 4-bit loading. Quantization and exact model revision are recorded in receipts rather than silently treated as full precision.
 
 ## Gate 0: FAIL
 
@@ -34,19 +41,18 @@ The gain was **+5.47 pp**, so the frozen gate failed. The receipt remains commit
 
 Gate 1 uses Qwen only as a deterministic semantic evidence scorer. Candidate answers are scored by full-string, length-normalized teacher-forced conditional log-likelihood with thinking disabled.
 
-The frozen benchmark contains 32 clean/corrupt pairs and changes exactly one cue in each corrupt item. SHA-256:
+The frozen 32-item development benchmark SHA-256 is:
 
 ```text
 38322de99fc14af71966dad1ecdcaa5f972300b2c3814455912440408f1a0f96
 ```
 
-A complete Qwen3-8B NF4 run on 29 Sep 2026 used model revision:
+The complete NF4 run used:
 
 ```text
-b968826d9c46dd6066d109eabc6255188de91218
+Qwen/Qwen3-8B
+revision b968826d9c46dd6066d109eabc6255188de91218
 ```
-
-Results:
 
 | Arm | Clean | Corrupt |
 |---|---:|---:|
@@ -56,35 +62,33 @@ Results:
 | breathing-only | 71.9% | 50.0% |
 | breathing + residue | 75.0% | 65.6% |
 
-The residue arm cleared the frozen corrupt-gain threshold versus the matched decomposed controls: **+15.6 pp**. It also did not lose clean accuracy versus those controls. But relative to native joint Qwen it produced only **3 recoveries and 6 new errors**, for a recovery advantage of **−3**; the frozen rule required at least +4. Therefore Gate 1 fails.
+Residue beat the matched decomposed controls by **+15.6 pp** on corrupt items, but relative to native joint Qwen it produced only **3 recoveries and 6 new errors**. The frozen gate therefore failed.
 
-The important diagnosis is representational: splitting a joint query into separately scored clues loses information. In shorthand,
+The useful diagnosis was representational:
 
 ```text
 F(A + B + C + D) != F(A) + F(B) + F(C) + F(D)
 ```
 
-Residue partially repairs the decomposed representation, but native joint conditioning remains much stronger.
+Splitting the query into separately scored clues loses information that joint conditioning uses. Yet the final residue weights located the deliberately corrupted cue on **30/32** items. That post-run observation motivated Gate 1B.
 
-A post-run diagnostic found that the lowest final residue-trust clue matched the deliberately corrupted slot on **30/32** items. On the paired clean versions, that same slot was the minimum only **7/32** times. This observation motivated Gate 1B; because it was discovered on this benchmark, it is not an independent result and is not part of the Gate 1 pass rule.
+External beta “breathing” itself did no useful selection work here: fixed, per-cue one-shot and breathing all had the same 50% corrupt accuracy. Positive beta changes entropy and margin but not ordering of a fixed candidate score vector.
 
-External beta “breathing” itself did no useful selection work in Gate 1: fixed, per-cue one-shot, and breathing all produced the same 50% corrupt accuracy. Positive beta changes entropy and margin but not candidate ordering when the evidence vector is fixed.
+## Gate 1B: PASS on the development set
 
-## Gate 1B: residue-guided native re-query — NOT RUN
-
-Gate 1B freezes a different hypothesis:
+Gate 1B changes the role of residue:
 
 > Use decomposition for **diagnosis**, then use intact joint Qwen for **reconstruction**.
 
-For each clean/corrupt query it compares five arms:
+For each query it compares:
 
-1. `native_all_cues` — score all clues jointly.
-2. `random_remove` — remove one deterministic pseudo-random clue, then score the rest jointly.
-3. `residue_guided` — run the frozen Gate-1 residue detector, remove the lowest-trust clue, then score the remaining clues jointly.
-4. `oracle_remove` — remove the known injected slot; an upper-bound control, not a deployable method.
-5. `exhaustive_leave_one_out` — run every one-clue-removed joint prompt and average their candidate probability vectors.
+1. `native_all_cues` — all clues jointly;
+2. `random_remove` — remove one deterministic pseudo-random clue, then re-query jointly;
+3. `residue_guided` — remove the lowest-trust residue clue, then re-query jointly;
+4. `oracle_remove` — remove the known injected corrupt slot;
+5. `exhaustive_leave_one_out` — average candidate probability vectors from all four one-clue-removed joint prompts.
 
-The Gate-1 schedule and robust constants are unchanged:
+The frozen controller constants stayed unchanged:
 
 ```text
 beta  = [0.50, 1.75, 0.65, 2.00]
@@ -93,16 +97,64 @@ delta = 0.20
 trust floor = 0.05
 ```
 
-The Gate 1B pass rule was frozen before its first run. On the exact 32-item benchmark, residue-guided re-query must simultaneously:
+Results on the same 32-item development benchmark:
 
-- beat native corrupt accuracy by at least **2/32 = 6.25 pp**;
-- beat deterministic random removal by at least **2/32 = 6.25 pp**;
-- lose at most **1/32 = 3.125 pp** clean accuracy versus native;
-- produce at least **2 more recoveries than new errors** relative to native corrupt answers.
+| Arm | Clean | Corrupt | Mean corrupt rank |
+|---|---:|---:|---:|
+| native all cues | 90.625% | 75.0% | 1.3125 |
+| random remove | 87.5% | 59.375% | 1.6563 |
+| residue guided | **90.625%** | **93.75%** | **1.0625** |
+| oracle remove | 93.75% | **93.75%** | **1.0625** |
+| exhaustive probability ensemble | 90.625% | 59.375% | 1.4375 |
 
-Because Gate 1B was designed after inspecting Gate 1 on these same prompts, a pass is development-set evidence only. It would justify a new held-out benchmark; it would not count as independent confirmation.
+The locator identified the injected corrupt slot on **30/32 = 93.75%** of corrupt queries. Residue-guided re-query gained **+18.75 pp over native**, **+34.375 pp over random removal**, had **0 clean loss**, recovered **6** native corrupt failures and introduced **0 new errors**. It passed every frozen Gate-1B criterion.
 
-The frozen design is in `docs/experiments/gate1b_residue_guided_requery.md`.
+On this development set, residue-guided re-query also matched the oracle-removal corrupt accuracy and mean rank. That is interesting, but it is **not independent confirmation**: Gate 1B was designed after inspecting Gate 1 on these same 32 targets.
+
+The two remaining residue-guided answer errors were also oracle-removal errors, so perfect knowledge of the corrupt slot did not rescue those items. The two locator mistakes did not change already-correct answers.
+
+The frozen Gate-1B design is in `docs/experiments/gate1b_residue_guided_requery.md`.
+
+## Gate 1C: held-out replication — NOT RUN
+
+Gate 1C freezes the unchanged Gate-1B mechanism on a new benchmark authored without consulting Qwen outputs on those items.
+
+Frozen benchmark:
+
+```text
+benchmarks/v1_holdout.jsonl
+128 items
+SHA-256 c0d45ec644f4755f8bfb879457a9b1ae1311c20b4697d0aead9dfb83510dafed
+```
+
+Composition:
+
+- 16 domains × 8 items;
+- 5 candidates and 4 true cues per item;
+- corrupt condition replaces exactly one cue;
+- corrupt position balanced at 32 items per slot;
+- 32 orthographic/name corruptions and 96 semantic/attribute corruptions;
+- no target answer reused from the 32-item v0 development benchmark.
+
+Official model provenance is frozen to:
+
+```text
+Qwen/Qwen3-8B
+revision b968826d9c46dd6066d109eabc6255188de91218
+NF4 4-bit
+```
+
+The official gate evaluates only when **all 128** items complete on those exact benchmark bytes and that exact model provenance. Residue-guided must simultaneously:
+
+- localize the injected corrupt cue on at least **75%** of items;
+- beat native corrupt accuracy by at least **8/128 = 6.25 pp**;
+- beat deterministic random removal by at least **8/128 = 6.25 pp**;
+- lose at most **4/128 = 3.125 pp** clean accuracy versus native;
+- have **recoveries minus new errors >= 8** relative to native corrupt answers.
+
+After the first official Gate 1C run begins, the benchmark, hash, model provenance, controller constants, arm definitions and thresholds are permanently frozen. Any dataset issue discovered later is documented rather than edited out of this gate.
+
+Full protocol: `docs/experiments/gate1c_holdout.md`.
 
 ## Run it
 
@@ -125,7 +177,7 @@ Gate 0:
 python scripts/run_toy.py --json
 ```
 
-Gate 1 on 4-bit Qwen3-8B:
+Gate 1-Q4:
 
 ```bash
 python scripts/run_qwen.py \
@@ -134,7 +186,7 @@ python scripts/run_qwen.py \
   --load-4bit
 ```
 
-Gate 1B on the same frozen model/benchmark:
+Gate 1B development-set re-query:
 
 ```bash
 python scripts/run_requery.py \
@@ -143,27 +195,37 @@ python scripts/run_requery.py \
   --load-4bit
 ```
 
-For a smoke test, add `--limit 2`. Partial runs can never evaluate the frozen Gate 1B decision.
+Gate 1C held-out replication:
+
+```bash
+python scripts/run_holdout.py \
+  --revision b968826d9c46dd6066d109eabc6255188de91218 \
+  --candidate-batch-size 1 \
+  --load-4bit
+```
+
+For a smoke test, add `--limit 2`. Partial Gate 1C runs can never evaluate the frozen decision.
 
 On Windows, `.gitattributes` pins `benchmarks/*.jsonl` to LF so the frozen SHA does not change merely because Git checked out CRLF line endings.
 
-## What is and is not being tested
+## What is and is not supported
 
-Supported by the current runs:
+Supported by completed runs:
 
 - contradictory cues can degrade native Qwen retrieval;
 - per-cue decomposition itself loses substantial joint-conditioning information;
-- residue reweighting improves the decomposed representation but failed the frozen Gate 1 decision;
-- the residue signal is promising as a corruption locator on the development benchmark.
+- residue reweighting improved decomposed evidence but failed Gate 1-Q4 as a final answer generator;
+- on the 32-item development set, residue was a strong corruption locator and residue-guided native re-query passed its frozen gate, matching oracle-removal corrupt accuracy.
 
 Not supported yet:
 
-- that residue-guided native re-query improves Qwen retrieval;
-- that internal attention-temperature breathing changes what Qwen can retrieve;
+- that the Gate-1B result generalizes to the 128-item held-out Gate 1C benchmark;
+- that the method handles multiple bad cues, open-ended answers or RAG;
+- that true internal attention-temperature breathing changes retrieval;
 - that this mechanism explains biological rhythm or human memory;
 - that recurrence substitutes for model scale.
 
-The stronger unresolved experiment is still true **internal** attention-temperature intervention. The external beta controller in Gate 1 changes only the sharpness of an already-fixed candidate score vector.
+The stronger unresolved “breathing” experiment is still true **internal** attention-temperature intervention. The external beta controller changes only the sharpness of an already-fixed candidate score vector.
 
 ## Repository layout
 
@@ -173,16 +235,19 @@ breathing_qwen/
   robust.py             robust cue weighting
   settling.py           external settling controller
   toy_memory.py         Gate-0 CPU falsifier
-  benchmark.py          paired benchmark schema
-  qwen_score.py         teacher-forced Qwen candidate scoring + inference provenance
+  benchmark.py          paired benchmark schema + frozen hashes
+  qwen_score.py         teacher-forced Qwen candidate scoring + provenance
   receipts.py           Gate-1 runner and receipts
-  requery.py            Gate-1B residue-guided native re-query
+  requery.py            Gate-1B residue-guided native re-query engine
+  holdout.py            Gate-1C held-out wrapper + frozen decision/provenance
   internal_attention.py Gate-3 intervention boundary
-benchmarks/v0.jsonl     frozen 32-pair benchmark
+benchmarks/
+  v0.jsonl              32-item development benchmark
+  v1_holdout.jsonl      128-item held-out Gate-1C benchmark
 docs/experiments/       frozen experiment specifications
-receipts/               committed official receipts
+receipts/               experiment receipts
 scripts/                runnable experiment CLIs
 tests/                  CPU/unit tests; Qwen integration is opt-in
 ```
 
-The point of this repository is not to preserve a favored mechanism. It is to keep changing the mechanism until the surviving claim is exactly what the experiments support.
+The point of this repository is not to preserve a favored mechanism. It is to keep narrowing the claim until the surviving statement is exactly what the experiments support.
